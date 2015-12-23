@@ -39,8 +39,6 @@ var verbose = 0;
 var milliseconds_RunTime = 1000*350; //Run for 5 minutes 50 seconds (350 seconds) MAX TIME is 6 minutes (360 seconds)
 var startTime = new Date();
 var cutShort = 0;
-// set this for friendlier local time zone timestamps
-var tzoffset = -6;
   
 // ========== END OF CONFIGURATION ==========
 
