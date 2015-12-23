@@ -43,6 +43,7 @@ Read the comments in the code, there's a lot of good stuff in there.
 1. Cut and paste this into your Google Apps Script development environment (script.google.com, or Eclipse with the Google plugin, or what have you...).
 1. Create a Google Sheet for logging.
 1. Set the configuration parameters in the configuration area at the top of the script.
+1. Enable the Drive API via Google Advanced Services.
 1. Run the script. Set up triggers if you'd like
 
 ## Known Bugs
