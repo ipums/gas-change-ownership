@@ -12,7 +12,7 @@
 
 // JOB SETTINGS
 // top of the folder tree where I want to apply this magic
-var parentFolderId = '0BxPKD09bpPJlLV9HZXJla04zbEU';
+var parentFolderId = 'FOLDER ID GOES HERE';
 // If you want to start from the top (root) folder
 //var parentFolder = DriveApp.getRootFolder();
 // person's files and folders I want to "steal" back
@@ -20,13 +20,13 @@ var parentFolderId = '0BxPKD09bpPJlLV9HZXJla04zbEU';
 var targetUserEmail = "";
 //var targetUserEmail = "USER@DOMAIN.NAME";
 // folder id where we want to move the old objects for archiving
-var oldObjectFolderId = '0BxPKD09bpPJlV0NmbTM1TVpOV3c';
+var oldObjectFolderId = 'FOLDER ID GOES HERE';
 // do we want the previous owner to be kept as an editor?
 var retainAccess = 0;
 
 // LOGGING SETTINGS
 // a Google Sheet to log activity
-var loggingSheetId = '1lh5cZQlaYzbaHm3mTsD--Lfu-6RXWVi7_R7-roYPAkw';
+var loggingSheetId = 'SPREADSHEET ID GOES HERE';
 // 0-based sheet tab number (i.e. this is the 4th tab on my logging spreadsheet.  Change to 0 if you just have one tab.
 var loggingSheetTabNumber = 3;
 // also log messages via Logger
