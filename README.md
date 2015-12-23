@@ -2,7 +2,7 @@
 
 This is a Google Apps Script to logically change ownership of files and folders by making copies and moving the old ones aside.
 
-## Introduction 
+## Why? 
 
 At work we are a Google Apps campus, and we collaborate heavily using the Google Apps platform. Our IT group uses a shared folder on Google Drive to organize our work which is owned by a departmental service account. We want content in this area to be owned by the service account and not individual users so that when people come and go, our documents stay. 
 
@@ -24,7 +24,7 @@ or even worse
 
 We could just run the script when someone is leaving on an ad-hoc basis, but for reasons I'll explain later you probably waht this script to run via trigger to keep the area clean on an ongoing basis.
 
-## Details
+## Code Details
 
 The key configuration parameters are the id of a starting folder and optionally a targeted user's email address.  It then traverses that folder tree and copies any files that the targeted user owns (or any files that anyone other than the user running the script owns, if no targeted user was provided). It will then make a copy of the file, re-create all of the sharing permissions (optionally adding the old owner as an editor on the new file), and archive the old file away in a separate archiving folder.  It will then traverse the tree again, this time looking for folders that are owned by the targeted user (or any user other than the one running the script, if a targeted user was not provided).  In this case, it will create a new folder, move all the files from old to new, and archive the old folder. 
 
