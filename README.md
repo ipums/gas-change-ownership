@@ -1,6 +1,6 @@
 # gas-change-ownership
 
-This is a Google Apps Script to logically change ownership of files and folders by making copies and moving the old ones aside.
+This is a Google Apps Script (GAS) to logically change ownership of files and folders by making copies and moving the old ones aside.
 
 ## Why? 
 
