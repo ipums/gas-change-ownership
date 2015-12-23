@@ -1,0 +1,367 @@
+// This script will traverse a folder hierarchy and make it appear as if the executing user grabbed ownership of anything in the tree that the 
+// script runner didn't own previously.
+// It cannot directly take ownership of objects from another owner (only an owner can reassign ownership) so instead, the script
+// accomplishes this by making a copy of each non-owned object, replicating all sharing permissions to the new object (except the old owner 
+// is optionally now an editor instead), and moves the old object aside to an archive.  In the case of folders, it also moves all the folder's
+// files into the new folder.
+// The script first discovers all files in the tree that need adjustment and processes them.  Then it goes back and processes folders.
+
+// IMPORTANT!!! This script relies on enabling the Drive API in Google Advanced Services.  
+
+// ========== START OF CONFIGURATION ==========
+
+// JOB SETTINGS
+// top of the folder tree where I want to apply this magic
+var parentFolderId = '0BxPKD09bpPJlLV9HZXJla04zbEU';
+// If you want to start from the top (root) folder
+//var parentFolder = DriveApp.getRootFolder();
+// person's files and folders I want to "steal" back
+// will do all files and folders not owned by me if this is blank
+var targetUserEmail = "";
+//var targetUserEmail = "USER@DOMAIN.NAME";
+// folder id where we want to move the old objects for archiving
+var oldObjectFolderId = '0BxPKD09bpPJlV0NmbTM1TVpOV3c';
+// do we want the previous owner to be kept as an editor?
+var retainAccess = 0;
+
+// LOGGING SETTINGS
+// a Google Sheet to log activity
+var loggingSheetId = '1lh5cZQlaYzbaHm3mTsD--Lfu-6RXWVi7_R7-roYPAkw';
+// 0-based sheet tab number (i.e. this is the 4th tab on my logging spreadsheet.  Change to 0 if you just have one tab.
+var loggingSheetTabNumber = 3;
+// also log messages via Logger
+var alsoLogger = 1;
+// should I be chatty in the log?
+var verbose = 0;
+
+// HELPER SETTINGS
+// to help track execution time and avoid exceeding max runtime
+var milliseconds_RunTime = 1000*350; //Run for 5 minutes 50 seconds (350 seconds) MAX TIME is 6 minutes (360 seconds)
+var startTime = new Date();
+var cutShort = 0;
+// set this for friendlier local time zone timestamps
+var tzoffset = -6;
+  
+// ========== END OF CONFIGURATION ==========
+
+// set up some needed objects
+var parentFolder = DriveApp.getFolderById(parentFolderId);
+var oldObjectFolder = DriveApp.getFolderById(oldObjectFolderId);
+var loggingSheet = SpreadsheetApp.openById(loggingSheetId).getSheets()[loggingSheetTabNumber];
+var lastRow = loggingSheet.getLastRow() + 1;
+
+// MAIN FUNCTION, RUN THIS ONE
+function runCleanup() {
+  
+  try {  
+    
+    // this seems like a bad idea - create empty list with globalish scope 
+    // then it gets modified in the recursion - must be a better way?
+    // seed it with the parent folder, otherwise files in parent folder won't get fixed
+    var folders = [parentFolder];
+    getChildFolders(parentFolder, folders);
+
+    slog("***** Starting Cleanup Run at location " + parentFolder.getName() + " *****");
+    if (targetUserEmail) {
+      slog("Only looking for objects owned by " + targetUserEmail);
+    }      
+    
+    processAffectedFiles(folders);
+    
+    // do we still have time left?
+    if (cutShort) {
+      slog("!!!!! Terminated Cleanup Run at location " + parentFolder.getName() + " due to max execution time. !!!!!");
+      return;
+    }
+    
+    processAffectedFolders(folders);
+
+    if (cutShort) {
+      slog("!!!!! Terminated Cleanup Run at location " + parentFolder.getName() + " due to max execution time. !!!!!");
+    } else { 
+      slog("***** Finished Cleanup Run at location " + parentFolder.getName() + " *****");
+    }
+  } catch (e) {    
+    slog("CAUGHT EXCEPTION " + e.toString());
+  }  
+}
+
+// build the folder tree structure for traversal
+function getChildFolders(parent, folders) {
+  var childFolders = parent.getFolders();
+  
+  while (childFolders.hasNext()) {    
+    var childFolder = childFolders.next();
+    if (verbose) {slog("Visiting " + childFolder.getName());}
+    folders.push(childFolder);
+    
+    // Recursive call for any sub-folders
+    getChildFolders(childFolder, folders);
+    
+  }
+}
+
+// first traverse and handle any files not owned by me
+function processAffectedFiles(folders) { 
+  // loop over folders, examime files within each, process them if not owned
+  for (var i = 0; i < folders.length; i++) {
+    // check if approaching max runtime
+    var endTime = new Date();
+    if (endTime.getTime() > startTime.getTime() + milliseconds_RunTime){ cutShort = 1; break; }
+
+    var folder = folders[i];
+    
+    slog("Checking files in folder " + folder.getName());
+    
+    // any files here that I don't already own?
+    var files;
+    if (targetUserEmail) {
+      files = folder.searchFiles('"' + targetUserEmail + '" in owners'); 
+    } else {
+      files = folder.searchFiles('not "me" in owners');
+    }
+  
+    while (files.hasNext()) {
+      try {
+        // check if approaching max runtime
+        var endTime = new Date();
+        if (endTime.getTime() > startTime.getTime() + milliseconds_RunTime){ cutShort = 1; break; }
+        
+        var file = files.next();
+        if (verbose) { Logger.log("Processing file " + file.getName() + " in " + folder.getName()); }
+
+        slog(["Affected File", file.getName(), file.getId(), file.getOwner().getEmail()]);
+        
+        // copy to a new file
+        // getName() because when some file types are copied they get a "Copy of" prefix otherwise
+        // Interestingly, only some types do - I think only native Google Drive types
+        newfile = file.makeCopy(file.getName());
+        newfileid = newfile.getId();
+        
+        // start process of copying over sharing settings
+        // copies of objects will automatically inherit sharing from the container,
+        // of course, but we have to replicate any sharing that was directly applied to
+        // original object
+        
+        // get the viewers and editors that were directly applied to the object
+        viewers = file.getViewers();
+        editors = file.getEditors();
+        
+        // add old owner as editor on new copy, if desired
+        if (retainAccess) { 
+          editors.push(file.getOwner());
+          if (verbose) { slog("Added old owner " + file.getOwner() + " as editor."); }
+        }
+        
+        // TODO figure out how to handle commenters?
+        
+        for (var j = 0; j < viewers.length; j++) {
+
+          // doing it this way will cause a notification to be sent to user        
+          //newfile.addViewer(viewers[i]);
+          
+          // do it this way if you don't want notifications
+          // requires Advanced Services / API enabled
+          Drive.Permissions.insert(
+            {
+              'role': 'reader',
+              'type': 'user',
+              'value': viewers[j].getEmail(),
+            },
+            newfileid,
+            {
+              'sendNotificationEmails': 'false'
+            });
+          if (verbose) { slog("Added " + viewers[j].getName() + " as viewer."); }
+        }
+        
+        for (var k = 0; k < editors.length; k++) {
+          
+          // doing it this way will cause a notification to be sent to user
+          //newfile.addEditor(editors[i]);
+          
+          // do it this way if you don't want notifications
+          // requires Advanced Services / API enabled
+          Drive.Permissions.insert(
+            {
+              'role': 'writer',
+              'type': 'user',
+              'value': editors[k].getEmail(),
+            },
+            newfileid,
+            {
+              'sendNotificationEmails': 'false'
+            });
+          if (verbose) { slog("Added " + editors[k].getName() + " as editor."); }
+        }
+        
+        // move old file out of the way
+        // as a last-resort back up
+        oldObjectFolder.addFile(file);
+        folder.removeFile(file);
+        
+        // mark the old file as deprecated so users who have bookmarked/starred/currently open don't get fooled
+        file.setName("[DEPRECATED] " + file.getName() + " [MOVED TO " + newfile.getUrl() + "]" );
+        // Leaving a comment would be good, and this works, but it sends email notifications and the API has no way to disable that
+        //Drive.Comments.insert(
+        //  {"content": "A cleanup script moved this file out of the way. The current copy of the document is now in the original location and can be found at " + newfile.getUrl() + "."
+        //  },
+        //  file.getId()
+        //);
+      } catch (e) {
+        slog("CAUGHT EXCEPTION " + e.toString());
+      }
+    }
+  }
+}
+ 
+// now traverse again, handling folders
+function processAffectedFolders(folders) {
+  slog("----- Starting on Folders -----");
+  
+  // loop over folders, examine subfolders within each, process them if not owned
+  for (var i = 0; i < folders.length; i++) {
+    // check if approaching max runtime
+    var endTime = new Date();
+    if (endTime.getTime() > startTime.getTime() + milliseconds_RunTime){ cutShort = 1; break; }
+
+    var folder = folders[i];
+
+    slog("Examining folder " + folder.getName());
+    
+    // any folders here that I don't already own?
+    var affectedSubfolders;
+    if (targetUserEmail) {
+      affectedSubfolders = folder.searchFolders('"' + targetUserEmail + '" in owners');
+    } else {
+      affectedSubfolders = folder.searchFolders('not "me" in owners');
+    }
+
+    while (affectedSubfolders.hasNext()) {
+      try {
+        // check if approaching max runtime
+        var endTime = new Date();
+        if (endTime.getTime() > startTime.getTime() + milliseconds_RunTime){ cutShort = 1; break; }
+        
+        var sf = affectedSubfolders.next();
+        
+        slog(["Affected Subfolder", sf.getName(), sf.getId(), sf.getOwner().getEmail()]);
+        
+        // locate or setup a new version of the subfolder which I own
+        // need to check if the folder was already created - this can happen if I 
+        // hit maximum execution time on a previous run
+        var newsfid;
+        var newsf;
+        
+        // double-escape any " in the folder name, once for Apps Script, once for Drive
+        newfolder = folder.searchFolders('title = "' + sf.getName().replace(/"/g,'\\"') + '" and "me" in owners');
+        if (!(newfolder.hasNext())) {  
+          // create a new subfolder that I own to move everything into
+          newsf = folder.createFolder(sf.getName());
+          newsfid = newsf.getId();
+          
+          // swap the old folder for the new one in the folders list, otherwise we won't descend into the new one looking for affected subfolders
+          // this is inefficient but the list shouldn't be enormous
+          // was pondering just adding this new folder to end of folders list, but I wasn't sure if folders.length in the enclosing loop was dynamic
+          for (var j = 0; j < folders.length; j++) {
+            if (folders[j].getId() == sf.getId()) {
+              folders[j] = newsf;
+              slog("Replaced old with new in folders list.");
+              break;
+            }
+          }
+          
+          slog("Created new subfolder I own with the name " + newsf.getName() + " and id " + newsfid + " ." );
+        } else {    
+          newsf = newfolder.next();
+          newsfid = newsf.getId();
+          slog("Found a subfolder I own with the name " + newsf.getName() + " and id " + newsfid + " already here. Using that one." );    
+        }
+        
+        // setup sharing on newsf
+        // get the viewers and editors that were directly applied to the object
+        viewers = sf.getViewers();
+        editors = sf.getEditors();
+        
+        // set old owner as editor on new copy, if desired
+        editors.push(sf.getOwner());
+        if (verbose) { slog("Added old folder owner " + sf.getOwner().getEmail() + " as editor."); }
+        
+        for (var j = 0; j < viewers.length; j++) {
+          // doing it this way will cause a notification to be sent to user        
+          //newfile.addViewer(viewers[i]);
+          
+          // do it this way if you don't want notifications
+          // requires Advanced Services / API enabled
+          Drive.Permissions.insert(
+            {
+              'role': 'reader',
+              'type': 'user',
+              'value': viewers[j].getEmail(),
+            },
+            newsfid,
+            {
+              'sendNotificationEmails': 'false'
+            });
+          if (verbose) { slog("Added " + viewers[j].getName() + " as viewer."); }
+        }
+        
+        for (var j = 0; j < editors.length; j++) {
+          // doing it this way will cause a notification to be sent to user
+          //newfile.addEditor(editors[i]);
+          
+          // do it this way if you don't want notifications
+          // requires Advanced Services / API enabled
+          Drive.Permissions.insert(
+            {
+              'role': 'writer',
+              'type': 'user',
+              'value': editors[j].getEmail(),
+            },
+            newsfid,
+            {
+              'sendNotificationEmails': 'false'
+            });
+          if (verbose) { slog("Added " + editors[j].getName() + " as editor."); }
+        }
+        
+        //move over all files and folders from sf to newsf
+        files = sf.getFiles();
+        while (files.hasNext()) {
+          f = files.next();
+          newsf.addFile(f);
+          sf.removeFile(f);
+        }
+        subfolders = sf.getFolders();
+        while (subfolders.hasNext()) {
+          f = subfolders.next();
+          newsf.addFolder(f);
+          sf.removeFolder(f);
+        }
+        
+        // remove old subfolder
+        oldObjectFolder.addFolder(sf);
+        folder.removeFolder(sf);
+        slog("Removed old folder with the name " + sf.getName() + " owned by " + sf.getOwner().getEmail() + ".");
+      } catch (e) {
+        slog("CAUGHT EXCEPTION " + e.toString());
+      }   
+    } 
+  } 
+}
+
+// helper function to write messages to Google Sheet
+// and optionally to log console
+function slog(fields) {
+  if (typeof fields == 'string') fields = [fields];
+  var timestamp = "[" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MM/dd/yyyy HH:mm:ss") + "]";
+  loggingSheet.getRange(lastRow, 1).setValue(timestamp);
+  for (var i = 2; i < fields.length + 2; i++) {
+    loggingSheet.getRange(lastRow, i).setValue(fields[i-2]);
+  }
+  lastRow++;
+  
+  if (alsoLogger) {
+    Logger.log(fields.join("|"));
+  }
+}
