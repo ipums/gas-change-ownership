@@ -27,9 +27,9 @@ var retainAccess = 0;
 // LOGGING SETTINGS
 // a Google Sheet to log activity
 var loggingSheetId = 'SPREADSHEET ID GOES HERE';
-// 0-based sheet tab number (i.e. this is the 4th tab on my logging spreadsheet.  Change to 0 if you just have one tab.
-var loggingSheetTabNumber = 3;
-// also log messages via Logger
+// 0-based sheet tab number (if you have many scripts logging to one Sheet, this may need to change)
+var loggingSheetTabNumber = 0;
+// also log messages via Logger.log
 var alsoLogger = 1;
 // should I be chatty in the log?
 var verbose = 0;
