@@ -1,3 +1,8 @@
+// This file is part of the Minnesota Population Center's gas-change-ownership.
+// For copyright and licensing information, see the NOTICE and LICENSE files
+// in this project's top-level directory, and also on-line at:
+//  https://github.com/mnpopcenter/gas-change-ownership
+
 // This script will traverse a folder hierarchy and make it appear as if the executing user grabbed ownership of anything in the tree that the 
 // script runner didn't own previously.
 // It cannot directly take ownership of objects from another owner (only an owner can reassign ownership) so instead, the script
