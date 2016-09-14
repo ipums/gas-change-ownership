@@ -2,7 +2,7 @@
 
 This is a Google Apps Script (GAS) to logically change ownership of files and folders by making copies and moving the old ones aside.
 
-## Why? 
+## Motivation 
 
 At work we are a Google Apps campus, and we collaborate heavily using the Google Apps platform. Our IT group uses a shared folder on Google Drive which is owned by a departmental service account to organize our work. We want all of content in this area to be owned by the service account and not individual users so that when people come and go, our documents stay. 
 
@@ -22,7 +22,7 @@ or even worse
 > Jane Doe was fired with cause.  You want to quickly take steps to preserve critical institutional knowledge and avoid any fallout
 > from potential malicious acts.
 
-We could just run the script when someone is leaving on an ad-hoc basis, but for reasons I'll explain later you probably waht this script to run via trigger to keep the area clean on an ongoing basis.
+We could just run the script when someone is leaving on an ad-hoc basis, but for reasons I'll explain later you probably want this script to run via trigger to keep the area clean on an ongoing basis.
 
 ## Code Details
 
