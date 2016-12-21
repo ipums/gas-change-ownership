@@ -11,7 +11,12 @@
 // files into the new folder.
 // The script first discovers all files in the tree that need adjustment and processes them.  Then it goes back and processes folders.
 
-// IMPORTANT!!! This script relies on enabling the Drive API in Google Advanced Services.  
+// IMPORTANT!!! This script relies on enabling the Drive API in two places.
+// See https://developers.google.com/drive/v3/web/enable-sdk to do it in the script developer console (this one may not be strictly necessary)
+// and https://developers.google.com/apps-script/guides/services/advanced to do it in Google Advanced Services. (definitely necessary) 
+// I don't know why Google has this in two different places, but the Advanced Services version has more functionality than the
+// built-in one, and I leverage that functionality.  If you get a "Drive is not defined" error, you forgot to enable the Advanced
+// Services version of the Drive API.
 
 // ========== START OF CONFIGURATION ==========
 
